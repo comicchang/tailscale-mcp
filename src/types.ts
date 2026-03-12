@@ -304,9 +304,6 @@ export const PolicyFileRequestSchema = z.object({
   policy: z.string().optional(),
   testRequest: z
     .object({
-      src: z.string(),
-      dst: z.string(),
-      proto: z.string().optional(),
       type: z.enum(["src", "dst"]).optional(),
       previewFor: z.string().optional(),
     })

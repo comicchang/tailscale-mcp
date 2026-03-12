@@ -187,10 +187,11 @@ export class UnifiedTailscaleClient {
   }
 
   /**
-   * List devices - available in both API and CLI
+   * List devices - API 是 tailnet 全量设备的权威来源，优先使用；
+   * CLI 只能看到本地节点可感知的设备，作为 fallback。
    */
   async listDevices(): Promise<UnifiedResponse<TailscaleDevice[] | string[]>> {
-    if (this.shouldUseAPI("listDevices")) {
+    if (this.apiAvailable) {
       const response = await this.api.listDevices();
       return this.normalizeAPIResponse(response);
     }

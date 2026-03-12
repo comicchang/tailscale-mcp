@@ -116,9 +116,6 @@ const PolicyFileSchema = z.object({
     .describe("Policy content (HuJSON format) for update operation"),
   testRequest: z
     .object({
-      src: z.string(),
-      dst: z.string(),
-      proto: z.string().optional(),
       type: z
         .enum(["src", "dst"])
         .optional()
@@ -133,7 +130,7 @@ const PolicyFileSchema = z.object({
         ),
     })
     .optional()
-    .describe("Access test parameters for test_access operation"),
+    .describe("Access test parameters for test_access operation. The current policy is fetched automatically and used as the request body."),
 });
 
 // Tool handlers
@@ -516,21 +513,27 @@ async function managePolicyFile(
       }
 
       case "test_access": {
-        if (!args.testRequest) {
+        // 先拉当前 policy 作为 request body
+        const policyResult = await context.api.getPolicyFile();
+        if (!policyResult.success) {
           return returnToolError(
-            "Test request parameters are required for test_access operation",
+            `Failed to fetch current policy: ${policyResult.error}`,
           );
         }
 
-        const { src, dst, proto, type, previewFor } = args.testRequest;
-        const result = await context.api.previewACLAccess(src, dst, proto, type, previewFor);
+        const { type, previewFor } = args.testRequest ?? {};
+        const result = await context.api.previewACLAccess(
+          policyResult.data as string,
+          type,
+          previewFor,
+        );
 
         if (!result.success) {
           return returnToolError(result.error);
         }
 
         return returnToolSuccess(
-          `ACL Access Preview:\n  - Source: ${src}\n  - Destination: ${dst}${proto ? `\n  - Protocol: ${proto}` : ""}\n  - Result:\n${JSON.stringify(result.data, null, 2)}`,
+          `ACL Access Preview (type=${type ?? "src"}${previewFor ? `, previewFor=${previewFor}` : ""}):\n${JSON.stringify(result.data, null, 2)}`,
         );
       }
 
