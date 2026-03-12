@@ -828,14 +828,17 @@ export class TailscaleAPI {
     dst: string,
     proto?: string,
     type: "src" | "dst" = "src",
+    previewFor?: string,
   ): Promise<TailscaleAPIResponse<unknown>> {
     try {
       const body: Record<string, string> = { src, dst };
       if (proto) body.proto = proto;
+      const params: Record<string, string> = { type };
+      if (previewFor) params.previewFor = previewFor;
       const response = await this.client.post(
         `/tailnet/${this.tailnet}/acl/preview`,
         body,
-        { params: { type } },
+        { params },
       );
       return this.handleResponse(response);
     } catch (error) {

@@ -125,6 +125,12 @@ const PolicyFileSchema = z.object({
         .describe(
           "Preview perspective: 'src' (what source can access, default) or 'dst' (what can access destination)",
         ),
+      previewFor: z
+        .string()
+        .optional()
+        .describe(
+          "Node ID, Tailscale IP (100.x.x.x), or tag (tag:xxx) to preview access for",
+        ),
     })
     .optional()
     .describe("Access test parameters for test_access operation"),
@@ -501,8 +507,8 @@ async function managePolicyFile(
           );
         }
 
-        const { src, dst, proto, type } = args.testRequest;
-        const result = await context.api.previewACLAccess(src, dst, proto, type);
+        const { src, dst, proto, type, previewFor } = args.testRequest;
+        const result = await context.api.previewACLAccess(src, dst, proto, type, previewFor);
 
         if (!result.success) {
           return returnToolError(result.error);
