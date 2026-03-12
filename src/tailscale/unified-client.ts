@@ -167,13 +167,23 @@ export class UnifiedTailscaleClient {
    * Get network status - available in both API and CLI
    */
   async getStatus(): Promise<UnifiedResponse<unknown>> {
-    if (this.shouldUseAPI("getStatus")) {
-      const response = await this.api.getTailnetInfo();
+    // 网络状态本质是 CLI 操作，优先使用 CLI
+    if (this.cliAvailable) {
+      const response = await this.cli.getStatus();
+      return this.normalizeCLIResponse(response);
+    }
+
+    // CLI 不可用时，用设备列表作为降级
+    if (this.apiAvailable) {
+      const response = await this.api.listDevices();
       return this.normalizeAPIResponse(response);
     }
 
-    const response = await this.cli.getStatus();
-    return this.normalizeCLIResponse(response);
+    return {
+      success: false,
+      error: "Network status requires Tailscale CLI, which is not available",
+      source: "cli",
+    };
   }
 
   /**

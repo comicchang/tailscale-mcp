@@ -1,6 +1,15 @@
 {
   "permissions": {
-    "allow": ["Bash(LOG_LEVEL=0 timeout 3 bun dist/index.js --http)"],
+    "allow": [
+      "Bash(LOG_LEVEL=0 timeout 3 bun dist/index.js --http)",
+      "WebFetch(domain:tailscale.com)",
+      "Read(//private/tmp/**)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebSearch",
+      "mcp__Multi-CLI__List-Gemini-Models",
+      "mcp__Multi-CLI__Ask-Gemini",
+      "Bash(bun run:*)"
+    ],
     "deny": []
   }
 }

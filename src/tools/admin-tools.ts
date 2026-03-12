@@ -5,13 +5,7 @@ import { returnToolError, returnToolSuccess } from "../utils.js";
 import type { ToolContext, ToolModule } from "./index.js";
 
 // Schemas
-const TailnetInfoSchema = z.object({
-  includeDetails: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe("Include advanced configuration details"),
-});
+const TailnetInfoSchema = z.object({});
 
 const FileSharingSchema = z.object({
   operation: z
@@ -41,12 +35,9 @@ const ExitNodeSchema = z.object({
 
 const WebhookSchema = z.object({
   operation: z
-    .enum(["list", "create", "delete", "test"])
+    .enum(["list", "create", "delete"])
     .describe("Webhook operation to perform"),
-  webhookId: z
-    .string()
-    .optional()
-    .describe("Webhook ID for delete/test operations"),
+  webhookId: z.string().optional().describe("Webhook ID for delete operation"),
   config: z
     .object({
       endpointUrl: z.string(),
@@ -71,122 +62,99 @@ const DeviceTaggingSchema = z.object({
     ),
 });
 
-const _SSHManagementSchema = z.object({
+const UserManagementSchema = z.object({
   operation: z
-    .enum(["get_ssh_settings", "update_ssh_settings"])
-    .describe("SSH management operation to perform"),
-  sshSettings: z
-    .object({
-      enabled: z.boolean().optional(),
-      checkPeriod: z.string().optional(),
-    })
-    .optional()
-    .describe("SSH configuration settings for update operation"),
-});
-
-const _NetworkStatsSchema = z.object({
-  operation: z
-    .enum(["get_network_overview", "get_device_stats"])
-    .describe("Statistics operation to perform"),
-  deviceId: z
-    .string()
-    .optional()
-    .describe("Device ID for device-specific statistics"),
-  timeRange: z
-    .enum(["1h", "24h", "7d", "30d"])
-    .optional()
-    .describe("Time range for statistics"),
-});
-
-const _UserManagementSchema = z.object({
-  operation: z
-    .enum(["list_users", "get_user", "update_user_role"])
-    .describe("User management operation to perform"),
+    .enum(["list", "delete"])
+    .describe(
+      "User management operation: list (列出所有用户), delete (删除用户)",
+    ),
   userId: z
     .string()
     .optional()
-    .describe("User ID for specific user operations"),
-  role: z
-    .enum(["admin", "user", "auditor"])
-    .optional()
-    .describe("User role for role update operations"),
+    .describe("User ID (required for delete operation)"),
 });
 
-const _DevicePostureSchema = z.object({
+const ContactsSchema = z.object({
   operation: z
-    .enum(["get_posture", "set_posture_policy", "check_compliance"])
-    .describe("Device posture operation to perform"),
-  deviceId: z.string().optional().describe("Device ID for posture operations"),
-  policy: z
-    .object({
-      requiredSoftware: z.array(z.string()).optional(),
-      allowedOSVersions: z.array(z.string()).optional(),
-      requireUpdate: z.boolean().optional(),
-    })
+    .enum(["get", "update"])
+    .describe("Contacts operation: get (查询联系人), update (更新联系人)"),
+  contacts: z
+    .record(z.string(), z.unknown())
     .optional()
-    .describe("Posture policy configuration"),
+    .describe("联系人信息 (required for update operation)"),
 });
 
-const _LoggingSchema = z.object({
+const LogStreamSchema = z.object({
   operation: z
-    .enum(["get_log_config", "set_log_level", "get_audit_logs"])
-    .describe("Logging operation to perform"),
-  logLevel: z
-    .enum(["debug", "info", "warn", "error"])
-    .optional()
-    .describe("Log level for set_log_level operation"),
-  component: z
+    .enum(["get", "create", "delete"])
+    .describe("Log stream operation"),
+  logType: z
+    .enum(["configuration", "network"])
+    .describe(
+      "日志类型: configuration (配置变更日志) 或 network (网络流量日志)",
+    ),
+  streamId: z
     .string()
     .optional()
-    .describe("Specific component for targeted logging"),
+    .describe("Stream ID (required for delete operation)"),
+  config: z
+    .object({
+      destinationUrl: z.string().describe("日志接收端 URL"),
+    })
+    .optional()
+    .describe("日志流配置 (required for create operation)"),
+});
+
+const DeviceAttributesSchema = z.object({
+  operation: z
+    .enum(["get", "set", "delete"])
+    .describe("Device attributes operation"),
+  deviceId: z.string().describe("Device ID"),
+  key: z
+    .string()
+    .optional()
+    .describe("Attribute key (required for set/delete)"),
+  value: z.unknown().optional().describe("Attribute value (required for set)"),
+});
+
+const TailnetSettingsSchema = z.object({
+  operation: z
+    .enum(["get", "update"])
+    .describe("Tailnet settings operation: get (查询) or update (更新)"),
+  settings: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe("要更新的设置项 (required for update operation)"),
 });
 
 // Tool handlers
 async function getTailnetInfo(
-  args: z.infer<typeof TailnetInfoSchema>,
+  _args: z.infer<typeof TailnetInfoSchema>,
   context: ToolContext,
 ): Promise<CallToolResult> {
   try {
-    logger.debug("Getting tailnet information:", args);
+    logger.debug("Getting tailnet information");
 
     const result = await context.api.getDetailedTailnetInfo();
     if (!result.success) {
       return returnToolError(result.error);
     }
 
-    const info = result.data;
-    const isKeyExpiryDisabled = info?.keyExpiryDisabled ? "Yes" : "No";
-    const isDeviceApprovalRequired = info?.deviceApprovalRequired
-      ? "Yes"
-      : "No";
+    // /settings 端点返回的字段与老 /tailnet/{tailnet} 不同
+    // 直接展示 settings 实际返回的数据
+    const info = result.data as Record<string, unknown> | undefined;
+    if (!info || Object.keys(info).length === 0) {
+      return returnToolSuccess("Tailnet settings: no data returned");
+    }
 
-    const formattedInfo = `**Tailnet Information**
-
-**Basic Details:**
-  - Name: ${info?.name || "Unknown"}
-  - Organization: ${info?.organization || "Unknown"}
-  - Created: ${info?.created || "Unknown"}
-
-**Settings:**
-  - DNS: ${info?.dns ? "Configured" : "Not configured"}
-  - File sharing: ${info?.fileSharing ? "Enabled" : "Disabled"}
-  - Service collection: ${info?.serviceCollection ? "Enabled" : "Disabled"}
-
-**Security:**
-  - Network lock: ${info?.networkLockEnabled ? "Enabled" : "Disabled"}
-  - OIDC identity provider: ${info?.oidcIdentityProviderURL || "Not configured"}
-
-${
-  args.includeDetails
-    ? `
-**Advanced Details:**
-  - Key expiry disabled: ${isKeyExpiryDisabled}
-  - Machine authorization timeout: ${
-    info?.machineAuthorizationTimeout || "Default"
-  }
-  - Device approval required: ${isDeviceApprovalRequired}`
-    : ""
-}`;
+    let formattedInfo = "**Tailnet Settings**\n\n";
+    for (const [key, value] of Object.entries(info)) {
+      if (typeof value === "boolean") {
+        formattedInfo += `  - ${key}: ${value ? "Enabled" : "Disabled"}\n`;
+      } else if (value !== null && value !== undefined) {
+        formattedInfo += `  - ${key}: ${typeof value === "object" ? JSON.stringify(value) : String(value)}\n`;
+      }
+    }
 
     return returnToolSuccess(formattedInfo);
   } catch (error) {
@@ -415,28 +383,9 @@ async function manageWebhooks(
         );
       }
 
-      case "test": {
-        if (!args.webhookId) {
-          return returnToolError("Webhook ID is required for test operation");
-        }
-
-        const result = await context.api.testWebhook(args.webhookId);
-        if (!result.success) {
-          return returnToolError(result.error);
-        }
-
-        return returnToolSuccess(
-          `Webhook test successful. Response: ${JSON.stringify(
-            result.data,
-            null,
-            2,
-          )}`,
-        );
-      }
-
       default:
         return returnToolError(
-          "Invalid webhook operation. Use: list, create, delete, or test",
+          "Invalid webhook operation. Use: list, create, or delete",
         );
     }
   } catch (error) {
@@ -556,6 +505,192 @@ async function manageDeviceTags(
   }
 }
 
+async function manageUsers(
+  args: z.infer<typeof UserManagementSchema>,
+  context: ToolContext,
+): Promise<CallToolResult> {
+  try {
+    switch (args.operation) {
+      case "list": {
+        const result = await context.api.getUsers();
+        if (!result.success) return returnToolError(result.error);
+        const users = result.data?.users || [];
+        if (users.length === 0) return returnToolSuccess("No users found");
+        const list = users
+          .map(
+            (u, i) =>
+              `**User ${i + 1}**\n  - ID: ${u.id}\n  - Login: ${u.loginName}\n  - Display: ${u.displayName}\n  - Role: ${u.role}\n  - Created: ${u.created}`,
+          )
+          .join("\n\n");
+        return returnToolSuccess(`Found ${users.length} users:\n\n${list}`);
+      }
+      case "delete": {
+        if (!args.userId)
+          return returnToolError("userId is required for delete operation");
+        const result = await context.api.deleteUser(args.userId);
+        if (!result.success) return returnToolError(result.error);
+        return returnToolSuccess(`User ${args.userId} deleted successfully`);
+      }
+      default:
+        return returnToolError("Invalid operation. Use: list or delete");
+    }
+  } catch (error) {
+    logger.error("Error managing users:", error);
+    return returnToolError(error);
+  }
+}
+
+async function manageContacts(
+  args: z.infer<typeof ContactsSchema>,
+  context: ToolContext,
+): Promise<CallToolResult> {
+  try {
+    switch (args.operation) {
+      case "get": {
+        const result = await context.api.getContacts();
+        if (!result.success) return returnToolError(result.error);
+        return returnToolSuccess(
+          `Tailnet Contacts:\n${JSON.stringify(result.data, null, 2)}`,
+        );
+      }
+      case "update": {
+        if (!args.contacts)
+          return returnToolError("contacts is required for update operation");
+        const result = await context.api.updateContacts(args.contacts);
+        if (!result.success) return returnToolError(result.error);
+        return returnToolSuccess("Contacts updated successfully");
+      }
+      default:
+        return returnToolError("Invalid operation. Use: get or update");
+    }
+  } catch (error) {
+    logger.error("Error managing contacts:", error);
+    return returnToolError(error);
+  }
+}
+
+async function manageLogStreams(
+  args: z.infer<typeof LogStreamSchema>,
+  context: ToolContext,
+): Promise<CallToolResult> {
+  try {
+    switch (args.operation) {
+      case "get": {
+        const result = await context.api.getLogStream(args.logType);
+        if (!result.success) return returnToolError(result.error);
+        return returnToolSuccess(
+          `Log Stream (${args.logType}):\n${JSON.stringify(result.data, null, 2)}`,
+        );
+      }
+      case "create": {
+        if (!args.config)
+          return returnToolError("config is required for create operation");
+        const result = await context.api.createLogStream(
+          args.logType,
+          args.config,
+        );
+        if (!result.success) return returnToolError(result.error);
+        return returnToolSuccess(
+          `Log stream created:\n${JSON.stringify(result.data, null, 2)}`,
+        );
+      }
+      case "delete": {
+        if (!args.streamId)
+          return returnToolError("streamId is required for delete operation");
+        const result = await context.api.deleteLogStream(
+          args.logType,
+          args.streamId,
+        );
+        if (!result.success) return returnToolError(result.error);
+        return returnToolSuccess(`Log stream ${args.streamId} deleted`);
+      }
+      default:
+        return returnToolError(
+          "Invalid operation. Use: get, create, or delete",
+        );
+    }
+  } catch (error) {
+    logger.error("Error managing log streams:", error);
+    return returnToolError(error);
+  }
+}
+
+async function manageDeviceAttributes(
+  args: z.infer<typeof DeviceAttributesSchema>,
+  context: ToolContext,
+): Promise<CallToolResult> {
+  try {
+    switch (args.operation) {
+      case "get": {
+        const result = await context.api.getDeviceAttributes(args.deviceId);
+        if (!result.success) return returnToolError(result.error);
+        return returnToolSuccess(
+          `Device Attributes (${args.deviceId}):\n${JSON.stringify(result.data, null, 2)}`,
+        );
+      }
+      case "set": {
+        if (!args.key)
+          return returnToolError("key is required for set operation");
+        const result = await context.api.setDeviceAttribute(
+          args.deviceId,
+          args.key,
+          args.value,
+        );
+        if (!result.success) return returnToolError(result.error);
+        return returnToolSuccess(
+          `Attribute "${args.key}" set on device ${args.deviceId}`,
+        );
+      }
+      case "delete": {
+        if (!args.key)
+          return returnToolError("key is required for delete operation");
+        const result = await context.api.deleteDeviceAttribute(
+          args.deviceId,
+          args.key,
+        );
+        if (!result.success) return returnToolError(result.error);
+        return returnToolSuccess(
+          `Attribute "${args.key}" deleted from device ${args.deviceId}`,
+        );
+      }
+      default:
+        return returnToolError("Invalid operation. Use: get, set, or delete");
+    }
+  } catch (error) {
+    logger.error("Error managing device attributes:", error);
+    return returnToolError(error);
+  }
+}
+
+async function manageTailnetSettings(
+  args: z.infer<typeof TailnetSettingsSchema>,
+  context: ToolContext,
+): Promise<CallToolResult> {
+  try {
+    switch (args.operation) {
+      case "get": {
+        const result = await context.api.getTailnetInfo();
+        if (!result.success) return returnToolError(result.error);
+        return returnToolSuccess(
+          `Tailnet Settings:\n${JSON.stringify(result.data, null, 2)}`,
+        );
+      }
+      case "update": {
+        if (!args.settings)
+          return returnToolError("settings is required for update operation");
+        const result = await context.api.updateTailnetSettings(args.settings);
+        if (!result.success) return returnToolError(result.error);
+        return returnToolSuccess("Tailnet settings updated successfully");
+      }
+      default:
+        return returnToolError("Invalid operation. Use: get or update");
+    }
+  } catch (error) {
+    logger.error("Error managing tailnet settings:", error);
+    return returnToolError(error);
+  }
+}
+
 // Export the tool module
 export const adminTools: ToolModule = {
   tools: [
@@ -588,6 +723,36 @@ export const adminTools: ToolModule = {
       description: "Manage device tags for organization and ACL targeting",
       inputSchema: DeviceTaggingSchema,
       handler: manageDeviceTags,
+    },
+    {
+      name: "manage_users",
+      description: "Manage Tailscale tailnet users (list and delete)",
+      inputSchema: UserManagementSchema,
+      handler: manageUsers,
+    },
+    {
+      name: "manage_contacts",
+      description: "Manage Tailscale tailnet contacts (security, support)",
+      inputSchema: ContactsSchema,
+      handler: manageContacts,
+    },
+    {
+      name: "manage_log_streams",
+      description: "Manage Tailscale log streaming configuration",
+      inputSchema: LogStreamSchema,
+      handler: manageLogStreams,
+    },
+    {
+      name: "manage_device_attributes",
+      description: "Manage custom device posture attributes",
+      inputSchema: DeviceAttributesSchema,
+      handler: manageDeviceAttributes,
+    },
+    {
+      name: "manage_tailnet_settings",
+      description: "Get or update Tailscale tailnet settings",
+      inputSchema: TailnetSettingsSchema,
+      handler: manageTailnetSettings,
     },
   ],
 };

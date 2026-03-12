@@ -25,7 +25,7 @@ RUN bun install --production --frozen-lockfile
 # This stage creates the final, lean image by copying only the
 # necessary artifacts from the builder stage.
 #
-FROM node:20-alpine AS production
+FROM oven/bun:1-alpine AS production
 
 # Install dumb-init for proper PID 1 signal handling
 RUN apk add --no-cache dumb-init
@@ -62,7 +62,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 ENV NODE_ENV=production
 ENV LOG_LEVEL=1
 
-# Use dumb-init as the entrypoint to manage the bun node process
+# Use dumb-init as the entrypoint to manage the bun process
 ENTRYPOINT ["dumb-init", "--"]
 
 # The command to start the application

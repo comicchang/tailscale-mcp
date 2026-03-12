@@ -92,15 +92,18 @@ const KeyManagementSchema = z.object({
     .describe("Authentication key ID (for delete operation)"),
 });
 
-const NetworkLockSchema = z.object({
+const SplitDNSSchema = z.object({
   operation: z
-    .enum(["status", "enable", "disable", "add_key", "remove_key", "list_keys"])
-    .describe("Network lock operation to perform"),
-  publicKey: z
-    .string()
+    .enum(["get", "set", "update"])
+    .describe(
+      "Split DNS operation: get (查询), set (覆盖全部), update (部分更新)",
+    ),
+  config: z
+    .record(z.string(), z.array(z.string()))
     .optional()
-    .describe("Public key for add/remove operations"),
-  keyId: z.string().optional().describe("Key ID for remove operations"),
+    .describe(
+      'Split DNS 配置，域名到 DNS 服务器的映射 (e.g. {"example.com": ["1.1.1.1"]})',
+    ),
 });
 
 const PolicyFileSchema = z.object({
@@ -400,58 +403,68 @@ async function manageKeys(
   }
 }
 
-async function manageNetworkLock(
-  args: z.infer<typeof NetworkLockSchema>,
+async function manageSplitDNS(
+  args: z.infer<typeof SplitDNSSchema>,
   context: ToolContext,
 ): Promise<CallToolResult> {
   try {
-    logger.debug("Managing network lock:", args);
+    logger.debug("Managing split DNS:", args);
 
     switch (args.operation) {
-      case "status": {
-        const result = await context.api.getNetworkLockStatus();
+      case "get": {
+        const result = await context.api.getSplitDNS();
         if (!result.success) {
           return returnToolError(result.error);
         }
 
-        const status = result.data;
+        const config = result.data || {};
+        const entries = Object.entries(config);
+        if (entries.length === 0) {
+          return returnToolSuccess("No Split DNS configuration found");
+        }
+
+        const formatted = entries
+          .map(
+            ([domain, servers]) =>
+              `  - ${domain}: ${(servers as string[]).join(", ")}`,
+          )
+          .join("\n");
+        return returnToolSuccess(`Split DNS Configuration:\n${formatted}`);
+      }
+
+      case "set": {
+        if (!args.config) {
+          return returnToolError("config is required for set operation");
+        }
+        const result = await context.api.setSplitDNS(args.config);
+        if (!result.success) {
+          return returnToolError(result.error);
+        }
         return returnToolSuccess(
-          `Network Lock Status:
-  - Enabled: ${status?.enabled ? "Yes" : "No"}
-  - Node Key: ${status?.nodeKey || "Not available"}
-  - Trusted Keys: ${status?.trustedKeys?.length || 0}`,
+          "Split DNS configuration replaced successfully",
         );
       }
 
-      case "enable": {
-        const result = await context.api.enableNetworkLock();
+      case "update": {
+        if (!args.config) {
+          return returnToolError("config is required for update operation");
+        }
+        const result = await context.api.updateSplitDNS(args.config);
         if (!result.success) {
           return returnToolError(result.error);
         }
-
         return returnToolSuccess(
-          `Network lock enabled successfully. Key: ${
-            result.data?.key || "Generated"
-          }`,
+          "Split DNS configuration updated successfully",
         );
-      }
-
-      case "disable": {
-        const result = await context.api.disableNetworkLock();
-        if (!result.success) {
-          return returnToolError(result.error);
-        }
-
-        return returnToolSuccess("Network lock disabled successfully");
       }
 
       default:
         return returnToolError(
-          "Invalid network lock operation. Use: status, enable, disable, add_key, remove_key, or list_keys",
+          "Invalid split DNS operation. Use: get, set, or update",
         );
     }
   } catch (error) {
-    logger.error("Error managing network lock:", error);
+    logger.error("Error managing split DNS:", error);
     return returnToolError(error);
   }
 }
@@ -483,21 +496,14 @@ async function managePolicyFile(
         }
 
         const { src, dst, proto } = args.testRequest;
-        const result = await context.api.testACLAccess(src, dst, proto);
+        const result = await context.api.previewACLAccess(src, dst, proto);
 
         if (!result.success) {
           return returnToolError(result.error);
         }
 
-        const testResult = result.data;
         return returnToolSuccess(
-          `ACL Access Test Result:
-  - Source: ${src}
-  - Destination: ${dst}
-  - Protocol: ${proto || "any"}
-  - Result: ${testResult?.allowed ? "ALLOWED" : "DENIED"}
-  - Rule: ${testResult?.rule || "No matching rule"}
-  - Match: ${testResult?.match || "N/A"}`,
+          `ACL Access Preview:\n  - Source: ${src}\n  - Destination: ${dst}${proto ? `\n  - Protocol: ${proto}` : ""}\n  - Result:\n${JSON.stringify(result.data, null, 2)}`,
         );
       }
 
@@ -534,11 +540,11 @@ export const aclTools: ToolModule = {
       handler: manageKeys,
     },
     {
-      name: "manage_network_lock",
+      name: "manage_split_dns",
       description:
-        "Manage Tailscale network lock (key authority) for enhanced security",
-      inputSchema: NetworkLockSchema,
-      handler: manageNetworkLock,
+        "Manage Tailscale Split DNS configuration for specific domains",
+      inputSchema: SplitDNSSchema,
+      handler: manageSplitDNS,
     },
     {
       name: "manage_policy_file",

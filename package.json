@@ -1,6 +1,6 @@
 {
-  "name": "@hexsleeves/tailscale-mcp-server",
-  "version": "0.3.2",
+  "name": "@comicchang/tailscale-mcp-server",
+  "version": "0.3.6",
   "description": "A Model Context Protocol (MCP) server that provides seamless integration with Tailscale's CLI commands and REST API, enabling automated network management and monitoring through a standardized interface.",
   "keywords": [
     "tailscale",
@@ -9,7 +9,7 @@
     "tailscale mcp",
     "tailscale mcp server"
   ],
-  "author": "HexSleeves",
+  "author": "comicchang",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
@@ -54,8 +54,8 @@
     "qa:full": "bun run typecheck && bun run test && bun run check",
     "inspector": "bunx @modelcontextprotocol/inspector bun dist/index.js",
     "prepublishOnly": "bun run build",
-    "publish": "./scripts/publish.sh",
-    "publish:test": "./scripts/test-publish.sh"
+    "release:local": "./scripts/publish.sh",
+    "release:local:test": "./scripts/test-publish.sh"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.3",

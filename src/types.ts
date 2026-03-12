@@ -375,37 +375,19 @@ export const DevicePostureRequestSchema = z.object({
     .optional(),
 });
 
-// Additional API Response Types
-export const TailnetInfoSchema = z.object({
-  name: z.string(),
-  id: z.string(),
-  domain: z.string(),
-  accountId: z.string(),
-  dnsConfig: z
-    .object({
-      nameservers: z.array(z.string()),
-      domains: z.array(z.string()),
-      magicDNS: z.boolean(),
-    })
-    .optional(),
-  organizationName: z.string().optional(),
-  organization: z.string().optional(),
-  createdAt: z.string(),
-  created: z.string().optional(),
-  dns: z
-    .object({
-      nameservers: z.array(z.string()),
-      magicDNS: z.boolean(),
-    })
-    .optional(),
-  fileSharing: z.boolean().optional(),
-  serviceCollection: z.boolean().optional(),
-  networkLockEnabled: z.boolean().optional(),
-  oidcIdentityProviderURL: z.string().optional(),
-  keyExpiryDisabled: z.boolean().optional(),
-  machineAuthorizationTimeout: z.string().optional(),
-  deviceApprovalRequired: z.boolean().optional(),
-});
+// Tailnet Settings（GET /tailnet/{tailnet}/settings 返回值）
+// 字段均设为 optional，因为 API 返回内容可能随版本变化
+export const TailnetInfoSchema = z
+  .object({
+    devicesApprovalOn: z.boolean().optional(),
+    devicesAutoUpdatesOn: z.boolean().optional(),
+    devicesKeyDurationDays: z.number().optional(),
+    usersApprovalOn: z.boolean().optional(),
+    networkFlowLoggingOn: z.boolean().optional(),
+    regionalRoutingOn: z.boolean().optional(),
+    postureIdentityCollectionOn: z.boolean().optional(),
+  })
+  .passthrough();
 
 export const ACLValidationResultSchema = z.object({
   valid: z.boolean(),

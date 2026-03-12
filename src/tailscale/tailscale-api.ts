@@ -7,24 +7,15 @@ import axios, {
 import { ZodError } from "zod";
 import { logger } from "../logger";
 import {
-  type ACLTestResult,
   type ACLValidationResult,
-  type AuditLogList,
   type AuthKeyList,
   type CreateAuthKeyRequest,
-  type DevicePosture,
   type DeviceRoutes,
-  type DeviceStats,
-  type NetworkLockStatus,
-  type NetworkStats,
-  type PosturePolicy,
-  type SSHSettings,
   type TailnetInfo,
   type TailscaleAPIResponse,
   type TailscaleConfig,
   type TailscaleDevice,
   TailscaleDeviceSchema,
-  type User,
   type UserList,
   type Webhook,
   type WebhookList,
@@ -331,15 +322,27 @@ export class TailscaleAPI {
   /**
    * Disable device routes
    */
+  /**
+   * 禁用设备路由：获取当前已启用路由，移除指定路由，再用 POST 设置剩余路由
+   */
   async disableDeviceRoutes(
     deviceId: string,
     routes: string[],
   ): Promise<TailscaleAPIResponse<void>> {
     try {
-      const response = await this.client.delete(`/device/${deviceId}/routes`, {
-        data: { routes: routes },
+      const current = await this.getDeviceRoutes(deviceId);
+      if (!current.success || !current.data) {
+        return {
+          success: false,
+          error: current.error || "Failed to get current routes",
+        };
+      }
+      const remaining = (current.data.enabledRoutes || []).filter(
+        (r) => !routes.includes(r),
+      );
+      const response = await this.client.post(`/device/${deviceId}/routes`, {
+        routes: remaining,
       });
-
       return this.handleResponse(response);
     } catch (error) {
       return this.handleError(error);
@@ -351,7 +354,9 @@ export class TailscaleAPI {
    */
   async getTailnetInfo(): Promise<TailscaleAPIResponse<TailnetInfo>> {
     try {
-      const response = await this.client.get(`/tailnet/${this.tailnet}`);
+      const response = await this.client.get(
+        `/tailnet/${this.tailnet}/settings`,
+      );
       return this.handleResponse(response);
     } catch (error) {
       return this.handleError(error);
@@ -652,7 +657,7 @@ export class TailscaleAPI {
     enabled: boolean,
   ): Promise<TailscaleAPIResponse<void>> {
     try {
-      const response = await this.client.post(
+      const response = await this.client.patch(
         `/tailnet/${this.tailnet}/settings`,
         {
           fileSharing: enabled,
@@ -689,15 +694,16 @@ export class TailscaleAPI {
   }
 
   /**
-   * Get network lock status
+   * 更新设备密钥属性（如禁用密钥过期）
    */
-  async getNetworkLockStatus(): Promise<
-    TailscaleAPIResponse<NetworkLockStatus>
-  > {
+  async updateDeviceKey(
+    deviceId: string,
+    keyExpiryDisabled: boolean,
+  ): Promise<TailscaleAPIResponse<void>> {
     try {
-      const response = await this.client.get(
-        `/tailnet/${this.tailnet}/network-lock`,
-      );
+      const response = await this.client.post(`/device/${deviceId}/key`, {
+        keyExpiryDisabled,
+      });
       return this.handleResponse(response);
     } catch (error) {
       return this.handleError(error);
@@ -705,13 +711,16 @@ export class TailscaleAPI {
   }
 
   /**
-   * Enable network lock
+   * 为设备分配固定 IPv4 地址
    */
-  async enableNetworkLock(): Promise<TailscaleAPIResponse<NetworkLockStatus>> {
+  async setDeviceIP(
+    deviceId: string,
+    ipv4: string,
+  ): Promise<TailscaleAPIResponse<void>> {
     try {
-      const response = await this.client.post(
-        `/tailnet/${this.tailnet}/network-lock`,
-      );
+      const response = await this.client.post(`/device/${deviceId}/ip`, {
+        ipv4,
+      });
       return this.handleResponse(response);
     } catch (error) {
       return this.handleError(error);
@@ -719,12 +728,15 @@ export class TailscaleAPI {
   }
 
   /**
-   * Disable network lock
+   * 更新 tailnet 设置（PATCH /tailnet/{tailnet}/settings）
    */
-  async disableNetworkLock(): Promise<TailscaleAPIResponse<void>> {
+  async updateTailnetSettings(
+    settings: Record<string, unknown>,
+  ): Promise<TailscaleAPIResponse<void>> {
     try {
-      const response = await this.client.delete(
-        `/tailnet/${this.tailnet}/network-lock`,
+      const response = await this.client.patch(
+        `/tailnet/${this.tailnet}/settings`,
+        settings,
       );
       return this.handleResponse(response);
     } catch (error) {
@@ -781,14 +793,12 @@ export class TailscaleAPI {
   }
 
   /**
-   * Test webhook
+   * 获取单个 webhook 详情
    */
-  async testWebhook(
-    webhookId: string,
-  ): Promise<TailscaleAPIResponse<{ success: boolean; message?: string }>> {
+  async getWebhook(webhookId: string): Promise<TailscaleAPIResponse<Webhook>> {
     try {
-      const response = await this.client.post(
-        `/tailnet/${this.tailnet}/webhooks/${webhookId}/test`,
+      const response = await this.client.get(
+        `/tailnet/${this.tailnet}/webhooks/${webhookId}`,
       );
       return this.handleResponse(response);
     } catch (error) {
@@ -813,22 +823,19 @@ export class TailscaleAPI {
   }
 
   /**
-   * Test ACL access
+   * 预览 ACL 访问规则（POST /acl/preview）
    */
-  async testACLAccess(
+  async previewACLAccess(
     src: string,
     dst: string,
     proto?: string,
-  ): Promise<TailscaleAPIResponse<ACLTestResult>> {
+  ): Promise<TailscaleAPIResponse<unknown>> {
     try {
-      const params = new URLSearchParams({
-        src,
-        dst,
-        ...(proto && { proto }),
-      });
-
-      const response = await this.client.get(
-        `/tailnet/${this.tailnet}/acl/test?${params}`,
+      const body: Record<string, string> = { src, dst };
+      if (proto) body.proto = proto;
+      const response = await this.client.post(
+        `/tailnet/${this.tailnet}/acl/preview`,
+        body,
       );
       return this.handleResponse(response);
     } catch (error) {
@@ -872,27 +879,12 @@ export class TailscaleAPI {
   }
 
   /**
-   * Get SSH settings for tailnet
+   * 获取 Split DNS 配置
    */
-  async getSSHSettings(): Promise<TailscaleAPIResponse<SSHSettings>> {
+  async getSplitDNS(): Promise<TailscaleAPIResponse<Record<string, string[]>>> {
     try {
-      const response = await this.client.get(`/tailnet/${this.tailnet}/ssh`);
-      return this.handleResponse(response);
-    } catch (error) {
-      return this.handleError(error);
-    }
-  }
-
-  /**
-   * Update SSH settings
-   */
-  async updateSSHSettings(
-    settings: Partial<SSHSettings>,
-  ): Promise<TailscaleAPIResponse<void>> {
-    try {
-      const response = await this.client.post(
-        `/tailnet/${this.tailnet}/ssh`,
-        settings,
+      const response = await this.client.get(
+        `/tailnet/${this.tailnet}/dns/split-dns`,
       );
       return this.handleResponse(response);
     } catch (error) {
@@ -901,11 +893,16 @@ export class TailscaleAPI {
   }
 
   /**
-   * Get network statistics
+   * 设置 Split DNS 配置（覆盖全部）
    */
-  async getNetworkStats(): Promise<TailscaleAPIResponse<NetworkStats>> {
+  async setSplitDNS(
+    config: Record<string, string[]>,
+  ): Promise<TailscaleAPIResponse<void>> {
     try {
-      const response = await this.client.get(`/tailnet/${this.tailnet}/stats`);
+      const response = await this.client.put(
+        `/tailnet/${this.tailnet}/dns/split-dns`,
+        config,
+      );
       return this.handleResponse(response);
     } catch (error) {
       return this.handleError(error);
@@ -913,13 +910,16 @@ export class TailscaleAPI {
   }
 
   /**
-   * Get device statistics
+   * 部分更新 Split DNS 配置
    */
-  async getDeviceStats(
-    deviceId: string,
-  ): Promise<TailscaleAPIResponse<DeviceStats>> {
+  async updateSplitDNS(
+    config: Record<string, string[]>,
+  ): Promise<TailscaleAPIResponse<void>> {
     try {
-      const response = await this.client.get(`/device/${deviceId}/stats`);
+      const response = await this.client.patch(
+        `/tailnet/${this.tailnet}/dns/split-dns`,
+        config,
+      );
       return this.handleResponse(response);
     } catch (error) {
       return this.handleError(error);
@@ -927,7 +927,38 @@ export class TailscaleAPI {
   }
 
   /**
-   * Get user list
+   * 获取 tailnet 联系人信息
+   */
+  async getContacts(): Promise<TailscaleAPIResponse<unknown>> {
+    try {
+      const response = await this.client.get(
+        `/tailnet/${this.tailnet}/contacts`,
+      );
+      return this.handleResponse(response);
+    } catch (error) {
+      return this.handleError(error);
+    }
+  }
+
+  /**
+   * 更新 tailnet 联系人信息
+   */
+  async updateContacts(
+    contacts: Record<string, unknown>,
+  ): Promise<TailscaleAPIResponse<void>> {
+    try {
+      const response = await this.client.patch(
+        `/tailnet/${this.tailnet}/contacts`,
+        contacts,
+      );
+      return this.handleResponse(response);
+    } catch (error) {
+      return this.handleError(error);
+    }
+  }
+
+  /**
+   * 列出 tailnet 用户
    */
   async getUsers(): Promise<TailscaleAPIResponse<UserList>> {
     try {
@@ -939,12 +970,28 @@ export class TailscaleAPI {
   }
 
   /**
-   * Get specific user
+   * 删除用户
    */
-  async getUser(userId: string): Promise<TailscaleAPIResponse<User>> {
+  async deleteUser(userId: string): Promise<TailscaleAPIResponse<void>> {
+    try {
+      const response = await this.client.delete(
+        `/tailnet/${this.tailnet}/users/${userId}`,
+      );
+      return this.handleResponse(response);
+    } catch (error) {
+      return this.handleError(error);
+    }
+  }
+
+  /**
+   * 获取日志流配置
+   */
+  async getLogStream(
+    logType: "configuration" | "network",
+  ): Promise<TailscaleAPIResponse<unknown>> {
     try {
       const response = await this.client.get(
-        `/tailnet/${this.tailnet}/users/${userId}`,
+        `/tailnet/${this.tailnet}/logging/${logType}/stream`,
       );
       return this.handleResponse(response);
     } catch (error) {
@@ -953,18 +1000,16 @@ export class TailscaleAPI {
   }
 
   /**
-   * Update user role
+   * 创建日志流配置
    */
-  async updateUserRole(
-    userId: string,
-    role: string,
-  ): Promise<TailscaleAPIResponse<void>> {
+  async createLogStream(
+    logType: "configuration" | "network",
+    config: { destinationUrl: string; [key: string]: unknown },
+  ): Promise<TailscaleAPIResponse<unknown>> {
     try {
       const response = await this.client.post(
-        `/tailnet/${this.tailnet}/users/${userId}`,
-        {
-          role: role,
-        },
+        `/tailnet/${this.tailnet}/logging/${logType}/stream`,
+        config,
       );
       return this.handleResponse(response);
     } catch (error) {
@@ -973,11 +1018,16 @@ export class TailscaleAPI {
   }
 
   /**
-   * Get audit logs
+   * 删除日志流配置
    */
-  async getAuditLogs(): Promise<TailscaleAPIResponse<AuditLogList>> {
+  async deleteLogStream(
+    logType: "configuration" | "network",
+    streamId: string,
+  ): Promise<TailscaleAPIResponse<void>> {
     try {
-      const response = await this.client.get(`/tailnet/${this.tailnet}/logs`);
+      const response = await this.client.delete(
+        `/tailnet/${this.tailnet}/logging/${logType}/stream/${streamId}`,
+      );
       return this.handleResponse(response);
     } catch (error) {
       return this.handleError(error);
@@ -985,13 +1035,13 @@ export class TailscaleAPI {
   }
 
   /**
-   * Get device posture information
+   * 获取设备自定义属性
    */
-  async getDevicePosture(
+  async getDeviceAttributes(
     deviceId: string,
-  ): Promise<TailscaleAPIResponse<DevicePosture>> {
+  ): Promise<TailscaleAPIResponse<unknown>> {
     try {
-      const response = await this.client.get(`/device/${deviceId}/posture`);
+      const response = await this.client.get(`/device/${deviceId}/attributes`);
       return this.handleResponse(response);
     } catch (error) {
       return this.handleError(error);
@@ -999,15 +1049,48 @@ export class TailscaleAPI {
   }
 
   /**
-   * Set device posture policy
+   * 设置设备自定义属性
    */
-  async setDevicePosturePolicy(
-    policy: PosturePolicy,
+  async setDeviceAttribute(
+    deviceId: string,
+    key: string,
+    value: unknown,
   ): Promise<TailscaleAPIResponse<void>> {
     try {
       const response = await this.client.post(
-        `/tailnet/${this.tailnet}/posture-policy`,
-        policy,
+        `/device/${deviceId}/attributes/${key}`,
+        { value },
+      );
+      return this.handleResponse(response);
+    } catch (error) {
+      return this.handleError(error);
+    }
+  }
+
+  /**
+   * 删除设备自定义属性
+   */
+  async deleteDeviceAttribute(
+    deviceId: string,
+    key: string,
+  ): Promise<TailscaleAPIResponse<void>> {
+    try {
+      const response = await this.client.delete(
+        `/device/${deviceId}/attributes/${key}`,
+      );
+      return this.handleResponse(response);
+    } catch (error) {
+      return this.handleError(error);
+    }
+  }
+
+  /**
+   * 获取认证密钥详情
+   */
+  async getAuthKey(keyId: string): Promise<TailscaleAPIResponse<unknown>> {
+    try {
+      const response = await this.client.get(
+        `/tailnet/${this.tailnet}/keys/${keyId}`,
       );
       return this.handleResponse(response);
     } catch (error) {

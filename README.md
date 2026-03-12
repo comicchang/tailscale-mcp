@@ -2,15 +2,15 @@
 
 A modern [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that provides seamless integration with Tailscale's CLI commands and REST API, enabling automated network management and monitoring through a standardized interface.
 
-<a href="https://glama.ai/mcp/servers/@HexSleeves/tailscale-mcp">
-  <img width="380" height="200" src="https://glama.ai/mcp/servers/@HexSleeves/tailscale-mcp/badge" alt="Tailscale Server MCP server" />
+<a href="https://glama.ai/mcp/servers/@comicchang/tailscale-mcp">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@comicchang/tailscale-mcp/badge" alt="Tailscale Server MCP server" />
 </a>
 
 ## 📦 Available Packages
 
-- **NPM**: [`@hexsleeves/tailscale-mcp-server`](https://www.npmjs.com/package/@hexsleeves/tailscale-mcp-server)
-- **Docker Hub**: [`hexsleeves/tailscale-mcp-server`](https://hub.docker.com/r/hexsleeves/tailscale-mcp-server)
-- **GitHub Container Registry**: [`ghcr.io/hexsleeves/tailscale-mcp-server`](https://github.com/users/HexSleeves/packages/container/package/tailscale-mcp-server)
+- **NPM**: [`@comicchang/tailscale-mcp-server`](https://www.npmjs.com/package/@comicchang/tailscale-mcp-server)
+- **Docker Hub**: [`ooxxcc/tailscale-mcp`](https://hub.docker.com/r/ooxxcc/tailscale-mcp)
+- **GitHub Container Registry**: [`ghcr.io/comicchang/tailscale-mcp`](https://github.com/comicchang/tailscale-mcp/pkgs/container/tailscale-mcp)
 
 ## 🚀 Recommended Package Manager
 
@@ -63,10 +63,10 @@ Run directly without installation:
 
 ```bash
 # Explicit package syntax (most reliable)
-npx --package=@hexsleeves/tailscale-mcp-server tailscale-mcp-server
+npx --package=@comicchang/tailscale-mcp-server tailscale-mcp-server
 
 # Or install globally
-npm install -g @hexsleeves/tailscale-mcp-server
+npm install -g @comicchang/tailscale-mcp-server
 tailscale-mcp-server
 ```
 
@@ -78,7 +78,7 @@ docker run -d \
   --name tailscale-mcp \
   -e TAILSCALE_API_KEY=your_api_key \
   -e TAILSCALE_TAILNET=your_tailnet \
-  ghcr.io/hexsleeves/tailscale-mcp-server:latest
+  ghcr.io/comicchang/tailscale-mcp:latest
 
 # Or use Docker Compose
 docker-compose up -d
@@ -100,7 +100,7 @@ Add to your Claude Desktop configuration (`~/.claude/claude_desktop_config.json`
     "tailscale": {
       "command": "npx",
       "args": [
-        "--package=@hexsleeves/tailscale-mcp-server",
+        "--package=@comicchang/tailscale-mcp-server",
         "tailscale-mcp-server"
       ],
       "env": {
@@ -127,7 +127,7 @@ Add to your Claude Desktop configuration (`~/.claude/claude_desktop_config.json`
         "TAILSCALE_API_KEY=your-api-key",
         "-e",
         "TAILSCALE_TAILNET=your-tailnet",
-        "ghcr.io/hexsleeves/tailscale-mcp-server:latest"
+        "ghcr.io/comicchang/tailscale-mcp:latest"
       ]
     }
   }
@@ -185,7 +185,7 @@ Add to your Claude Desktop configuration (`~/.claude/claude_desktop_config.json`
     "tailscale": {
       "command": "npx",
       "args": [
-        "--package=@hexsleeves/tailscale-mcp-server",
+        "--package=@comicchang/tailscale-mcp-server",
         "tailscale-mcp-server"
       ],
       "env": {
@@ -220,18 +220,35 @@ See [Tailscale OAuth Scopes](https://tailscale.com/kb/1215/oauth-clients#scopes)
 - `list_devices` - List all devices in the Tailscale network
 - `device_action` - Perform actions on specific devices (authorize, deauthorize, delete, expire-key)
 - `manage_routes` - Enable or disable routes for devices
+- `manage_device_tags` - Manage device tags for organization and ACL targeting
+- `manage_device_attributes` - Manage custom device posture attributes
+- `manage_exit_nodes` - Manage Tailscale exit nodes and routing
 
 ### Network Operations
 
-- `get_network_status` - Get current network status from Tailscale CLI
+- `get_network_status` - Get current network status (CLI-first, API fallback)
 - `connect_network` - Connect to the Tailscale network
 - `disconnect_network` - Disconnect from the Tailscale network
 - `ping_peer` - Ping a peer device
 
-### System Information
+### ACL & DNS Management
+
+- `manage_acl` - Manage Access Control Lists (get, update, validate)
+- `manage_dns` - Manage DNS configuration (nameservers, MagicDNS, search paths)
+- `manage_split_dns` - Manage Split DNS configuration for specific domains
+- `manage_keys` - Manage Tailscale authentication keys
+- `manage_policy_file` - Manage policy files and preview ACL access rules
+
+### Administration
 
 - `get_version` - Get Tailscale version information
 - `get_tailnet_info` - Get detailed network information
+- `manage_tailnet_settings` - Get or update Tailscale tailnet settings
+- `manage_file_sharing` - Manage Tailscale file sharing settings
+- `manage_webhooks` - Manage webhooks for event notifications
+- `manage_users` - List and delete tailnet users
+- `manage_contacts` - Manage tailnet contacts (security, support)
+- `manage_log_streams` - Manage log streaming configuration
 
 ## Development
 
@@ -239,7 +256,7 @@ See [Tailscale OAuth Scopes](https://tailscale.com/kb/1215/oauth-clients#scopes)
 
 ```bash
 # Clone and setup
-git clone https://github.com/HexSleeves/tailscale-mcp-server.git
+git clone https://github.com/comicchang/tailscale-mcp-server.git
 cd tailscale-mcp-server
 
 # Install Bun (recommended) or use npm
@@ -350,25 +367,42 @@ tail -f logs/debug-*.log
 
 ## API Reference
 
+All API methods align with the [Tailscale API v2](https://tailscale.com/api) endpoints.
+
 ### Tool Categories
 
-#### Device Tools
+#### Device Tools (`device-tools.ts`)
 
 - Device listing and filtering
-- Device authorization management
-- Route management per device
+- Device authorization management (authorize, deauthorize, delete, expire-key)
+- Route management per device (enable/disable subnet routes)
 
-#### Network Tools
+#### Network Tools (`network-tools.ts`)
 
-- Network status monitoring
-- Connection management
-- Peer connectivity testing
+- Network status monitoring (CLI-first, API device list as fallback)
+- Connection management (connect/disconnect via CLI)
+- Peer connectivity testing (ping)
+- Version information
 
-#### Security Tools
+#### ACL & DNS Tools (`acl-tools.ts`)
 
-- ACL management
-- Device tagging
-- Network lock operations
+- ACL management (get, update, validate)
+- DNS configuration (nameservers, MagicDNS, search paths)
+- Split DNS configuration (per-domain DNS servers)
+- Authentication key management (list, create, delete)
+- Policy file management and ACL access preview
+
+#### Admin Tools (`admin-tools.ts`)
+
+- Tailnet information and settings management
+- File sharing configuration
+- Exit node management
+- Webhook management (list, create, delete)
+- Device tag management
+- User management (list, delete)
+- Contact management (security, support)
+- Log stream configuration (configuration/network logs)
+- Device posture attributes (custom key-value metadata)
 
 ## Contributing
 

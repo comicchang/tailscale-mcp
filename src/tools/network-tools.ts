@@ -1,6 +1,6 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import type { TailscaleCLIStatus } from "@/types.js";
+import type { TailscaleCLIStatus, TailscaleDevice } from "@/types.js";
 import { logger } from "../logger.js";
 import { returnToolError, returnToolSuccess } from "../utils.js";
 import type { ToolContext, ToolModule } from "./index.js";
@@ -67,6 +67,31 @@ async function getNetworkStatus(
       return returnToolError(result.error);
     }
 
+    // API fallback 返回设备列表，数据结构不同于 CLI status
+    if (result.source === "api") {
+      const data = result.data;
+      if (args.format === "summary") {
+        if (Array.isArray(data)) {
+          let output =
+            "**Tailscale Network Status** (via API - limited info)\n\n";
+          output += `Found ${data.length} devices:\n\n`;
+          for (const device of data) {
+            const d = device as TailscaleDevice;
+            output += `**${d.name || d.hostname}**\n`;
+            output += `  - ID: ${d.id}\n`;
+            output += `  - OS: ${d.os}\n`;
+            output += `  - Addresses: ${d.addresses?.join(", ") || "N/A"}\n`;
+            output += `  - Authorized: ${d.authorized ? "Yes" : "No"}\n`;
+            output += `  - Last seen: ${d.lastSeen}\n\n`;
+          }
+          return returnToolSuccess(output);
+        }
+        return returnToolSuccess(JSON.stringify(data, null, 2));
+      }
+      return returnToolSuccess(JSON.stringify(data, null, 2));
+    }
+
+    // CLI 返回完整的 TailscaleCLIStatus
     const status = result.data as TailscaleCLIStatus;
 
     if (args.format === "summary") {
@@ -213,8 +238,13 @@ async function getVersion(
       return returnToolError(result.error);
     }
 
+    const versionData = result.data;
+    const versionText =
+      typeof versionData === "object" && versionData !== null
+        ? JSON.stringify(versionData, null, 2)
+        : String(versionData);
     return returnToolSuccess(
-      `Tailscale version information:\n\n${result.data}`,
+      `Tailscale version information:\n\n${versionText}`,
     );
   } catch (error: unknown) {
     logger.error("Error getting version:", error);

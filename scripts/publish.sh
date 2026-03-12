@@ -7,7 +7,7 @@ set -e # Exit on any error
 # --- Configuration ---
 # Your primary git branch
 MAIN_BRANCH="main"
-DOCKER_HUB_USERNAME="hexsleeves"
+DOCKER_HUB_USERNAME="ooxxcc"
 DOCKER_HUB_REPO="tailscale-mcp-server"
 
 # --- Colors for output ---

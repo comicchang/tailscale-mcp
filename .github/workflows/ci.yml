@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
@@ -58,7 +58,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
@@ -103,7 +103,7 @@ jobs:
   #       uses: actions/checkout@v4
 
   #     - name: Setup Bun
-  #       uses: oven-sh/setup-bun@v1
+  #       uses: oven-sh/setup-bun@v2
   #       with:
   #         bun-version: ${{ env.BUN_VERSION }}
 
@@ -177,7 +177,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
@@ -223,7 +223,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
@@ -248,7 +248,7 @@ jobs:
       - name: Run security audit
         run: |
           echo "🔍 Running security audit..."
-          bun audit || echo "⚠️ Audit found issues but continuing..."
+          npm audit || echo "⚠️ Audit found issues but continuing..."
 
       - name: Run dependency vulnerability check
         run: |
