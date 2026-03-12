@@ -184,8 +184,10 @@ export class TailscaleAPI {
    */
   async listDevices(): Promise<TailscaleAPIResponse<TailscaleDevice[]>> {
     try {
+      // fields=all 确保返回 enabledRoutes、advertisedRoutes、clientConnectivity 等完整字段
       const response = await this.client.get<{ devices: TailscaleDevice[] }>(
         `/tailnet/${this.tailnet}/devices`,
+        { params: { fields: "all" } },
       );
 
       // Validate and parse devices
@@ -779,13 +781,11 @@ export class TailscaleAPI {
   }
 
   /**
-   * Delete webhook
+   * Delete webhook（路径不含 tailnet，对应 DELETE /webhook/{webhookId}）
    */
   async deleteWebhook(webhookId: string): Promise<TailscaleAPIResponse<void>> {
     try {
-      const response = await this.client.delete(
-        `/tailnet/${this.tailnet}/webhooks/${webhookId}`,
-      );
+      const response = await this.client.delete(`/webhook/${webhookId}`);
       return this.handleResponse(response);
     } catch (error) {
       return this.handleError(error);
@@ -793,13 +793,11 @@ export class TailscaleAPI {
   }
 
   /**
-   * 获取单个 webhook 详情
+   * 获取单个 webhook 详情（路径不含 tailnet，对应 GET /webhook/{webhookId}）
    */
   async getWebhook(webhookId: string): Promise<TailscaleAPIResponse<Webhook>> {
     try {
-      const response = await this.client.get(
-        `/tailnet/${this.tailnet}/webhooks/${webhookId}`,
-      );
+      const response = await this.client.get(`/webhook/${webhookId}`);
       return this.handleResponse(response);
     } catch (error) {
       return this.handleError(error);
@@ -829,6 +827,7 @@ export class TailscaleAPI {
     src: string,
     dst: string,
     proto?: string,
+    type: "src" | "dst" = "src",
   ): Promise<TailscaleAPIResponse<unknown>> {
     try {
       const body: Record<string, string> = { src, dst };
@@ -836,6 +835,7 @@ export class TailscaleAPI {
       const response = await this.client.post(
         `/tailnet/${this.tailnet}/acl/preview`,
         body,
+        { params: { type } },
       );
       return this.handleResponse(response);
     } catch (error) {
@@ -1000,14 +1000,14 @@ export class TailscaleAPI {
   }
 
   /**
-   * 创建日志流配置
+   * 创建/更新日志流配置（PUT，每个 logType 只允许一个 stream 配置）
    */
   async createLogStream(
     logType: "configuration" | "network",
     config: { destinationUrl: string; [key: string]: unknown },
   ): Promise<TailscaleAPIResponse<unknown>> {
     try {
-      const response = await this.client.post(
+      const response = await this.client.put(
         `/tailnet/${this.tailnet}/logging/${logType}/stream`,
         config,
       );
@@ -1018,15 +1018,14 @@ export class TailscaleAPI {
   }
 
   /**
-   * 删除日志流配置
+   * 删除日志流配置（每个 logType 只有一个 stream，无需 streamId）
    */
   async deleteLogStream(
     logType: "configuration" | "network",
-    streamId: string,
   ): Promise<TailscaleAPIResponse<void>> {
     try {
       const response = await this.client.delete(
-        `/tailnet/${this.tailnet}/logging/${logType}/stream/${streamId}`,
+        `/tailnet/${this.tailnet}/logging/${logType}/stream`,
       );
       return this.handleResponse(response);
     } catch (error) {

@@ -119,6 +119,12 @@ const PolicyFileSchema = z.object({
       src: z.string(),
       dst: z.string(),
       proto: z.string().optional(),
+      type: z
+        .enum(["src", "dst"])
+        .optional()
+        .describe(
+          "Preview perspective: 'src' (what source can access, default) or 'dst' (what can access destination)",
+        ),
     })
     .optional()
     .describe("Access test parameters for test_access operation"),
@@ -495,8 +501,8 @@ async function managePolicyFile(
           );
         }
 
-        const { src, dst, proto } = args.testRequest;
-        const result = await context.api.previewACLAccess(src, dst, proto);
+        const { src, dst, proto, type } = args.testRequest;
+        const result = await context.api.previewACLAccess(src, dst, proto, type);
 
         if (!result.success) {
           return returnToolError(result.error);

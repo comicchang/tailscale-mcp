@@ -93,10 +93,7 @@ const LogStreamSchema = z.object({
     .describe(
       "日志类型: configuration (配置变更日志) 或 network (网络流量日志)",
     ),
-  streamId: z
-    .string()
-    .optional()
-    .describe("Stream ID (required for delete operation)"),
+  // 每个 logType 只允许一个 stream 配置，delete 无需 streamId
   config: z
     .object({
       destinationUrl: z.string().describe("日志接收端 URL"),
@@ -595,14 +592,9 @@ async function manageLogStreams(
         );
       }
       case "delete": {
-        if (!args.streamId)
-          return returnToolError("streamId is required for delete operation");
-        const result = await context.api.deleteLogStream(
-          args.logType,
-          args.streamId,
-        );
+        const result = await context.api.deleteLogStream(args.logType);
         if (!result.success) return returnToolError(result.error);
-        return returnToolSuccess(`Log stream ${args.streamId} deleted`);
+        return returnToolSuccess(`Log stream (${args.logType}) deleted`);
       }
       default:
         return returnToolError(

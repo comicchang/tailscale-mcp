@@ -307,6 +307,7 @@ export const PolicyFileRequestSchema = z.object({
       src: z.string(),
       dst: z.string(),
       proto: z.string().optional(),
+      type: z.enum(["src", "dst"]).optional(),
     })
     .optional(),
 });
