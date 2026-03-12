@@ -91,19 +91,34 @@ const ContactsSchema = z.object({
 const LogStreamSchema = z.object({
   operation: z
     .enum(["get", "create", "delete"])
-    .describe("Log stream operation"),
+    .describe(
+      "操作类型: get (查询审计日志事件), create (创建日志导出目标), delete (删除日志导出目标)",
+    ),
   logType: z
     .enum(["configuration", "network"])
     .describe(
-      "日志类型: configuration (配置变更日志) 或 network (网络流量日志)",
+      "日志类型: configuration (配置变更审计日志) 或 network (网络流量日志)",
     ),
-  // 每个 logType 只允许一个 stream 配置，delete 无需 streamId
+  // get 操作专用：时间范围 (RFC 3339)
+  start: z
+    .string()
+    .optional()
+    .describe(
+      "查询起始时间 (RFC 3339, required for get), e.g. 2026-03-11T00:00:00Z",
+    ),
+  end: z
+    .string()
+    .optional()
+    .describe(
+      "查询结束时间 (RFC 3339, required for get), e.g. 2026-03-12T00:00:00Z",
+    ),
+  // create 操作专用：导出目标配置
   config: z
     .object({
       destinationUrl: z.string().describe("日志接收端 URL"),
     })
     .optional()
-    .describe("日志流配置 (required for create operation)"),
+    .describe("日志流导出目标配置 (required for create operation)"),
 });
 
 const DeviceAttributesSchema = z.object({
@@ -583,10 +598,18 @@ async function manageLogStreams(
   try {
     switch (args.operation) {
       case "get": {
-        const result = await context.api.getLogStream(args.logType);
+        if (!args.start || !args.end)
+          return returnToolError(
+            "start and end (RFC 3339) are required for get operation, e.g. start=2026-03-11T00:00:00Z end=2026-03-12T00:00:00Z",
+          );
+        const result = await context.api.getAuditLogs(
+          args.logType,
+          args.start,
+          args.end,
+        );
         if (!result.success) return returnToolError(result.error);
         return returnToolSuccess(
-          `Log Stream (${args.logType}):\n${JSON.stringify(result.data, null, 2)}`,
+          `Audit Logs (${args.logType}, ${args.start} ~ ${args.end}):\n${JSON.stringify(result.data, null, 2)}`,
         );
       }
       case "create": {
@@ -740,7 +763,8 @@ export const adminTools: ToolModule = {
     },
     {
       name: "manage_log_streams",
-      description: "Manage Tailscale log streaming configuration",
+      description:
+        "Query Tailscale audit/network logs (get with start+end) or manage log export destinations (create/delete)",
       inputSchema: LogStreamSchema,
       handler: manageLogStreams,
     },

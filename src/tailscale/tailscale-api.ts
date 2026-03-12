@@ -828,19 +828,17 @@ export class TailscaleAPI {
    * query: type=src|dst, previewFor=<nodeId|ip|tag>
    */
   async previewACLAccess(
-    policyContent: string,
-    type: "src" | "dst" = "src",
-    previewFor?: string,
+    aclConfig: unknown,
+    type: "user" | "ipport",
+    previewFor: string,
   ): Promise<TailscaleAPIResponse<unknown>> {
     try {
-      const params: Record<string, string> = { type };
-      if (previewFor) params.previewFor = previewFor;
       const response = await this.client.post(
         `/tailnet/${this.tailnet}/acl/preview`,
-        policyContent,
+        aclConfig,
         {
-          params,
-          headers: { "Content-Type": "application/hujson" },
+          params: { type, previewFor },
+          headers: { "Content-Type": "application/json" },
         },
       );
       return this.handleResponse(response);
@@ -992,12 +990,15 @@ export class TailscaleAPI {
   /**
    * 获取日志流配置
    */
-  async getLogStream(
+  async getAuditLogs(
     logType: "configuration" | "network",
+    start: string,
+    end: string,
   ): Promise<TailscaleAPIResponse<unknown>> {
     try {
       const response = await this.client.get(
-        `/tailnet/${this.tailnet}/logging/${logType}/stream`,
+        `/tailnet/${this.tailnet}/logging/${logType}`,
+        { params: { start, end } },
       );
       return this.handleResponse(response);
     } catch (error) {
@@ -1014,7 +1015,7 @@ export class TailscaleAPI {
   ): Promise<TailscaleAPIResponse<unknown>> {
     try {
       const response = await this.client.put(
-        `/tailnet/${this.tailnet}/logging/${logType}/stream`,
+        `/tailnet/${this.tailnet}/logging/${logType}`,
         config,
       );
       return this.handleResponse(response);
@@ -1031,7 +1032,7 @@ export class TailscaleAPI {
   ): Promise<TailscaleAPIResponse<void>> {
     try {
       const response = await this.client.delete(
-        `/tailnet/${this.tailnet}/logging/${logType}/stream`,
+        `/tailnet/${this.tailnet}/logging/${logType}`,
       );
       return this.handleResponse(response);
     } catch (error) {

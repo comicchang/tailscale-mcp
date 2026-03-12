@@ -5,38 +5,48 @@ export const TailscaleDeviceSchema = z.object({
   id: z.string(),
   name: z.string(),
   hostname: z.string(),
-  clientVersion: z.string(),
-  updateAvailable: z.boolean(),
+  clientVersion: z.string().optional(),
+  updateAvailable: z.boolean().optional(),
   os: z.string(),
   created: z.string(),
   lastSeen: z.string(),
-  keyExpiryDisabled: z.boolean(),
-  expires: z.string(),
+  keyExpiryDisabled: z.boolean().optional(),
+  expires: z.string().optional().nullable(),
   authorized: z.boolean(),
   isExternal: z.boolean(),
-  machineKey: z.string(),
-  nodeKey: z.string(),
-  blocksIncomingConnections: z.boolean(),
+  machineKey: z.string().optional(),
+  nodeKey: z.string().optional(),
+  blocksIncomingConnections: z.boolean().optional(),
   enabledRoutes: z.array(z.string()).optional().default([]),
   advertisedRoutes: z.array(z.string()).optional().default([]),
   clientConnectivity: z
     .object({
-      endpoints: z.array(z.string()),
-      derp: z.string(),
-      mappingVariesByDestIP: z.boolean(),
-      latency: z.record(z.string(), z.number()).optional(),
-      clientSupports: z.object({
-        hairPinning: z.boolean(),
-        ipv6: z.boolean(),
-        pcp: z.boolean(),
-        pmp: z.boolean(),
-        udp: z.boolean(),
-        upnp: z.boolean(),
-      }),
+      endpoints: z.array(z.string()).optional(),
+      derp: z.string().optional(),
+      mappingVariesByDestIP: z.boolean().optional(),
+      latency: z
+        .record(
+          z.string(),
+          z.object({
+            latencyMs: z.number().optional(),
+            preferred: z.boolean().optional(),
+          }),
+        )
+        .optional(),
+      clientSupports: z
+        .object({
+          hairPinning: z.boolean().nullable(),
+          ipv6: z.boolean().nullable(),
+          pcp: z.boolean().nullable(),
+          pmp: z.boolean().nullable(),
+          udp: z.boolean().nullable(),
+          upnp: z.boolean().nullable(),
+        })
+        .optional(),
     })
     .optional(),
   addresses: z.array(z.string()),
-  user: z.string(),
+  user: z.string().optional(),
   tags: z.array(z.string()).optional(),
 });
 
@@ -304,7 +314,7 @@ export const PolicyFileRequestSchema = z.object({
   policy: z.string().optional(),
   testRequest: z
     .object({
-      type: z.enum(["src", "dst"]).optional(),
+      type: z.enum(["user", "ipport"]).optional(),
       previewFor: z.string().optional(),
     })
     .optional(),

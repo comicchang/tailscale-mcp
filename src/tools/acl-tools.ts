@@ -117,16 +117,14 @@ const PolicyFileSchema = z.object({
   testRequest: z
     .object({
       type: z
-        .enum(["src", "dst"])
-        .optional()
+        .enum(["user", "ipport"])
         .describe(
-          "Preview perspective: 'src' (what source can access, default) or 'dst' (what can access destination)",
+          "Entity type: 'user' (registered user email) or 'ipport' (IP:port, e.g. 10.0.0.1:80)",
         ),
       previewFor: z
         .string()
-        .optional()
         .describe(
-          "Node ID, Tailscale IP (100.x.x.x), or tag (tag:xxx) to preview access for",
+          "For 'user': a valid user email with registered machines. For 'ipport': IP:port string e.g. 100.75.95.17:80",
         ),
     })
     .optional()
@@ -513,17 +511,22 @@ async function managePolicyFile(
       }
 
       case "test_access": {
-        // 先拉当前 policy 作为 request body
-        const policyResult = await context.api.getPolicyFile();
-        if (!policyResult.success) {
+        if (!args.testRequest?.type || !args.testRequest?.previewFor) {
           return returnToolError(
-            `Failed to fetch current policy: ${policyResult.error}`,
+            "test_access requires testRequest.type and testRequest.previewFor",
+          );
+        }
+        // 取 JSON 格式 ACL 配置作为 request body
+        const aclResult = await context.api.getACL();
+        if (!aclResult.success) {
+          return returnToolError(
+            `Failed to fetch current ACL: ${aclResult.error}`,
           );
         }
 
-        const { type, previewFor } = args.testRequest ?? {};
+        const { type, previewFor } = args.testRequest;
         const result = await context.api.previewACLAccess(
-          policyResult.data as string,
+          aclResult.data,
           type,
           previewFor,
         );
@@ -533,7 +536,7 @@ async function managePolicyFile(
         }
 
         return returnToolSuccess(
-          `ACL Access Preview (type=${type ?? "src"}${previewFor ? `, previewFor=${previewFor}` : ""}):\n${JSON.stringify(result.data, null, 2)}`,
+          `ACL Access Preview (type=${type}, previewFor=${previewFor}):\n${JSON.stringify(result.data, null, 2)}`,
         );
       }
 
