@@ -62,8 +62,8 @@ This project includes comprehensive documentation organized by domain:
 Run directly without installation:
 
 ```bash
-# Explicit package syntax (most reliable)
-npx --package=@comicchang/tailscale-mcp-server tailscale-mcp-server
+# 直接运行（推荐）
+npx -y @comicchang/tailscale-mcp-server
 
 # Or install globally
 npm install -g @comicchang/tailscale-mcp-server
@@ -100,8 +100,8 @@ Add to your Claude Desktop configuration (`~/.claude/claude_desktop_config.json`
     "tailscale": {
       "command": "npx",
       "args": [
-        "--package=@comicchang/tailscale-mcp-server",
-        "tailscale-mcp-server"
+        "-y",
+        "@comicchang/tailscale-mcp-server"
       ],
       "env": {
         "TAILSCALE_API_KEY": "your-api-key-here",
@@ -185,8 +185,8 @@ Add to your Claude Desktop configuration (`~/.claude/claude_desktop_config.json`
     "tailscale": {
       "command": "npx",
       "args": [
-        "--package=@comicchang/tailscale-mcp-server",
-        "tailscale-mcp-server"
+        "-y",
+        "@comicchang/tailscale-mcp-server"
       ],
       "env": {
         "TAILSCALE_OAUTH_CLIENT_ID": "your-oauth-client-id",
