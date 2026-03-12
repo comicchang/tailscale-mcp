@@ -226,7 +226,9 @@ export class TailscaleAPI {
     deviceId: string,
   ): Promise<TailscaleAPIResponse<TailscaleDevice>> {
     try {
-      const response = await this.client.get(`/device/${deviceId}`);
+      const response = await this.client.get(`/device/${deviceId}`, {
+        params: { fields: "all" },
+      });
       const device = TailscaleDeviceSchema.parse(response.data);
 
       return this.handleResponse({ ...response, data: device });
@@ -945,15 +947,17 @@ export class TailscaleAPI {
   }
 
   /**
-   * 更新 tailnet 联系人信息
+   * 更新 tailnet 联系人信息（每种类型单独更新）
+   * contactType: "account" | "support" | "security"
    */
   async updateContacts(
-    contacts: Record<string, unknown>,
+    contactType: "account" | "support" | "security",
+    contact: { email: string },
   ): Promise<TailscaleAPIResponse<void>> {
     try {
       const response = await this.client.patch(
-        `/tailnet/${this.tailnet}/contacts`,
-        contacts,
+        `/tailnet/${this.tailnet}/contacts/${contactType}`,
+        contact,
       );
       return this.handleResponse(response);
     } catch (error) {
@@ -978,9 +982,7 @@ export class TailscaleAPI {
    */
   async deleteUser(userId: string): Promise<TailscaleAPIResponse<void>> {
     try {
-      const response = await this.client.delete(
-        `/tailnet/${this.tailnet}/users/${userId}`,
-      );
+      const response = await this.client.post(`/users/${userId}/delete`);
       return this.handleResponse(response);
     } catch (error) {
       return this.handleError(error);

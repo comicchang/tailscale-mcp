@@ -78,10 +78,14 @@ const ContactsSchema = z.object({
   operation: z
     .enum(["get", "update"])
     .describe("Contacts operation: get (查询联系人), update (更新联系人)"),
-  contacts: z
-    .record(z.string(), z.unknown())
+  contactType: z
+    .enum(["account", "support", "security"])
     .optional()
-    .describe("联系人信息 (required for update operation)"),
+    .describe("联系人类型 (required for update operation)"),
+  email: z
+    .string()
+    .optional()
+    .describe("联系人邮箱 (required for update operation)"),
 });
 
 const LogStreamSchema = z.object({
@@ -551,11 +555,17 @@ async function manageContacts(
         );
       }
       case "update": {
-        if (!args.contacts)
-          return returnToolError("contacts is required for update operation");
-        const result = await context.api.updateContacts(args.contacts);
+        if (!args.contactType)
+          return returnToolError("contactType is required for update operation");
+        if (!args.email)
+          return returnToolError("email is required for update operation");
+        const result = await context.api.updateContacts(args.contactType, {
+          email: args.email,
+        });
         if (!result.success) return returnToolError(result.error);
-        return returnToolSuccess("Contacts updated successfully");
+        return returnToolSuccess(
+          `Contact (${args.contactType}) updated to ${args.email}`,
+        );
       }
       default:
         return returnToolError("Invalid operation. Use: get or update");
