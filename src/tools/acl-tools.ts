@@ -500,6 +500,21 @@ async function managePolicyFile(
         );
       }
 
+      case "update": {
+        if (!args.policy) {
+          return returnToolError(
+            "Policy content (HuJSON) is required for update operation",
+          );
+        }
+
+        const result = await context.api.updateACL(args.policy);
+        if (!result.success) {
+          return returnToolError(result.error);
+        }
+
+        return returnToolSuccess("Policy file updated successfully");
+      }
+
       case "test_access": {
         if (!args.testRequest) {
           return returnToolError(
@@ -521,7 +536,7 @@ async function managePolicyFile(
 
       default:
         return returnToolError(
-          "Invalid policy operation. Use: get or test_access",
+          "Invalid policy operation. Use: get, update, or test_access",
         );
     }
   } catch (error) {
